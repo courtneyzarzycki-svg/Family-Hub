@@ -1425,12 +1425,15 @@ async function getFCMToken() {
       throw new Error("Notification permission not granted");
     }
 
+    const swReg = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+
     const token = await getToken(messaging, {
-      vapidKey: "BLuv5J3H0LpdaJ8VYgCVPCRqtsNK2ng1KIDuFMed4Zp8i0s5Gq36t7fHrOAsbQvjrIgLacpJjMvOKZwtqm_LtxQ"
+      vapidKey: "BLuv5J3H0LpdaJ8VYgCVPCRqtsNK2ng1KIDuFMed4Zp8i0s5Gq36t7fHrOAsbQvjrIgLacpJjMvOKZwtqm_LtxQ",
+      serviceWorkerRegistration: swReg
     });
 
     if (!token) {
-      throw new Error("Token is null (service worker or registration issue)");
+      throw new Error("Token is null (service worker issue)");
     }
 
     document.body.innerHTML += `
@@ -1446,5 +1449,6 @@ async function getFCMToken() {
 }
 
 getFCMToken();
+
 
 
