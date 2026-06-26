@@ -810,7 +810,7 @@ function openEventModal(id){
   html+="<div><div style='font-size:12px;font-weight:500;color:#6b7280;margin-bottom:6px'>Notifications</div><div id='ev-notif-rows'></div></div>";
   html+="<div><div style='font-size:12px;font-weight:500;color:#6b7280;margin-bottom:4px'>Parent attending</div><select id='ev-parent' style='width:100%'>"+pOpts+"</select></div>";
   if(MEMBERS[currentUser]&&MEMBERS[currentUser].admin){html+="<div style='display:flex;align-items:center;gap:10px'><label class='toggle-wrap'><input type='checkbox' id='ev-show-work' "+(ev&&ev.showInWork?'checked':'')+"><span class='toggle-slider'></span></label><span style='font-size:13px'>Show in Mike's work calendar</span></div>";}
-  if(workMode&&(STATE.jobs||[]).length){var jobOpts="<option value=''>No job assigned</option>";(STATE.jobs||[]).forEach(function(j){jobOpts+="<option value='"+j.id+"'"+(ev&&ev.jobId===j.id?" selected":"")+" style='color:"+j.color+"'>"+j.name+"</option>";});html+="<div><div style='font-size:12px;font-weight:500;color:#6b7280;margin-bottom:4px'>Job</div><select id='ev-job' style='width:100%'>"+jobOpts+"</select></div>";}
+  if(workMode){var jobOpts="<option value=''>No job assigned</option>";(STATE.jobs||[]).forEach(function(j){jobOpts+="<option value='"+j.id+"'"+(ev&&ev.jobId===j.id?" selected":"")+" style='color:"+j.color+"'>"+j.name+"</option>";});html+="<div><div style='font-size:12px;font-weight:500;color:#6b7280;margin-bottom:4px'>Job</div><select id='ev-job' style='width:100%'>"+jobOpts+"</select></div>";}
   html+="<div style='display:flex;gap:8px;margin-top:4px'><button class='btn btn-primary' style='flex:1' onclick='saveEvent()'>Save</button>"+(ev?"<button class='btn btn-danger' onclick=\"deleteEvent('"+ev.id+"')\">Delete</button>":"")+"<button class='btn btn-secondary' onclick=\"closeModal('event-modal')\">Cancel</button></div>";
   document.getElementById("event-form").innerHTML=html;
   if(ev&&ev.location)renderLocPreview();renderTypeHint();
@@ -1164,12 +1164,38 @@ function renderShopping(){
   var tabsEl=document.getElementById("store-tabs");tabsEl.innerHTML="";
   STATE.storeList.forEach(function(s){
     var d=document.createElement("div");d.className="store-tab"+(s===currentActiveStore?" active":"");
-    d.textContent=s;(function(ss){d.onclick=function(){switchStore(ss);};})(s);tabsEl.appendChild(d);
+    d.textContent=s;(function(ss){
+    d.onclick=function(){switchStore(ss);};
+    // Long press to delete store
+    var pressTimer;
+    d.addEventListener("touchstart",function(){pressTimer=setTimeout(function(){
+      if(STATE.storeList.length<=1){showInfoModal("Can't delete","You need at least one store.");return;}
+      confirmAction("Delete store "+ss+"?",function(){
+        STATE.storeList=STATE.storeList.filter(function(x){return x!==ss;});
+        delete STATE.stores[ss];
+        currentActiveStore=STATE.storeList[0];
+        save();renderShopping();
+      });
+    },700);},{passive:true});
+    d.addEventListener("touchend",function(){clearTimeout(pressTimer);},{passive:true});
+  })(s);tabsEl.appendChild(d);
   });
   var addStore=document.createElement("div");addStore.className="store-tab";addStore.textContent="+ Store";addStore.style.borderStyle="dashed";addStore.style.color="#9ca3af";addStore.onclick=addStorePrompt;tabsEl.appendChild(addStore);
   var items=STATE.stores[currentActiveStore]||[];
   var sc=document.getElementById("shopping-content");sc.innerHTML="";
-  var stitle=document.createElement("div");stitle.style.cssText="font-weight:600;font-size:15px;margin-bottom:10px";stitle.textContent=currentActiveStore;sc.appendChild(stitle);
+  var stitleRow=document.createElement("div");stitleRow.style.cssText="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px";
+  var stitle=document.createElement("div");stitle.style.cssText="font-weight:600;font-size:15px";stitle.textContent=currentActiveStore;
+  var sdelBtn=document.createElement("button");sdelBtn.className="btn btn-danger btn-sm";sdelBtn.textContent="Delete Store";
+  sdelBtn.onclick=function(){
+    if(STATE.storeList.length<=1){showInfoModal("Can't delete","You need at least one store.");return;}
+    confirmAction("Delete "+currentActiveStore+" and all its items?",function(){
+      STATE.storeList=STATE.storeList.filter(function(x){return x!==currentActiveStore;});
+      delete STATE.stores[currentActiveStore];
+      currentActiveStore=STATE.storeList[0];
+      save();renderShopping();
+    });
+  };
+  stitleRow.appendChild(stitle);stitleRow.appendChild(sdelBtn);sc.appendChild(stitleRow);
   if(!items.length){var snone=document.createElement("div");snone.style.cssText="text-align:center;color:#9ca3af;font-size:13px;padding:16px 0";snone.textContent="List empty";sc.appendChild(snone);}
   items.forEach(function(item){
     var row=document.createElement("div");row.className="check-item";
