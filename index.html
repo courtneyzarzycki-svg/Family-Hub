@@ -1135,14 +1135,14 @@ function processMidnightChores(){
       }}
 }
 
-// Check for overnight chore renewal every minute
-var lastChoreDate=today();
+// Check for overnight chore and reminder renewal every minute
+var lastMidnightDate=today();
 setInterval(function(){
   var nowDate=today();
-  if(nowDate!==lastChoreDate){lastChoreDate=nowDate;processMidnightChores();}
+  if(nowDate!==lastMidnightDate){lastMidnightDate=nowDate;processMidnightChores();processMidnightReminders();}
 },60000);
 // Also run on startup in case app was closed overnight
-setTimeout(processMidnightChores,2000);
+setTimeout(function(){processMidnightChores();processMidnightReminders();},2000);
 function toggleTodo(id){var todos=workMode?STATE.todos_work:STATE.todos,idx=todos.map(function(t){return t.id;}).indexOf(id);if(idx<0)return;todos[idx].completed=!todos[idx].completed;save();renderTaskContent();}
 function deleteTodo(id){if(workMode)STATE.todos_work=STATE.todos_work.filter(function(t){return t.id!==id;});else STATE.todos=STATE.todos.filter(function(t){return t.id!==id;});save();renderTaskContent();}
 var chMemSel=[];
@@ -1339,17 +1339,45 @@ function renderReminders(){
 function completeReminder(id){
   var list=workMode?(STATE.reminders_work||[]):STATE.reminders;
   var idx=list.map(function(r){return r.id;}).indexOf(id);if(idx<0)return;
-  var r=list[idx],done=Object.assign({},r,{completed:true,completedDate:today()});
-  if(workMode){if(!STATE.completedReminders_work)STATE.completedReminders_work=[];STATE.completedReminders_work.push(done);}
-  else{if(!STATE.completedReminders)STATE.completedReminders=[];STATE.completedReminders.push(done);}
-  if(r.repeat&&r.repeat!=="none"){
-    var next=Object.assign({},r,{id:uid(),completed:false,completedDate:null});
-    var d=new Date(r.date+"T12:00:00");
-    if(r.repeat==="daily")d.setDate(d.getDate()+1);else if(r.repeat==="weekly")d.setDate(d.getDate()+7);else if(r.repeat==="monthly")d.setMonth(d.getMonth()+1);else if(r.repeat==="yearly")d.setFullYear(d.getFullYear()+1);
-    next.date=d.toISOString().split("T")[0];list.splice(idx,1,next);
-  } else {list.splice(idx,1);}
+  var r=list[idx];
+  // Mark as completed with today's date - stays visible with strikethrough until midnight
+  list[idx]=Object.assign({},r,{completed:true,completedDate:today()});
   if(workMode)STATE.reminders_work=list;else STATE.reminders=list;
   save();renderReminders();if(currentTab==="home")renderHome();
+}
+
+function processMidnightReminders(){
+  var changed=false;
+  var lists=[STATE.reminders,STATE.reminders_work||[]];
+  lists.forEach(function(list,wi){
+    var keep=[];
+    list.forEach(function(r){
+      if(r.completed&&r.completedDate&&r.completedDate<today()){
+        // Move to completed log
+        var done=Object.assign({},r,{completed:true});
+        if(wi===0){if(!STATE.completedReminders)STATE.completedReminders=[];STATE.completedReminders.push(done);}
+        else{if(!STATE.completedReminders_work)STATE.completedReminders_work=[];STATE.completedReminders_work.push(done);}
+        // If repeating, add fresh copy with next date
+        if(r.repeat&&r.repeat!=="none"){
+          var next=Object.assign({},r,{id:uid(),completed:false,completedDate:null});
+          var d=new Date(r.date+"T12:00:00");
+          if(r.repeat==="daily")d.setDate(d.getDate()+1);
+          else if(r.repeat==="weekly")d.setDate(d.getDate()+7);
+          else if(r.repeat==="monthly")d.setMonth(d.getMonth()+1);
+          else if(r.repeat==="yearly")d.setFullYear(d.getFullYear()+1);
+          next.date=d.toISOString().split("T")[0];
+          keep.push(next);
+        }
+        // Non-repeating just disappears to completed log
+        changed=true;
+      } else {
+        keep.push(r);
+      }
+    });
+    if(wi===0)STATE.reminders=keep;
+    else STATE.reminders_work=keep;
+  });
+  if(changed){save();if(currentUser)renderCurrentTab();}
 }
 function deleteCompletedReminder(id){STATE.completedReminders=(STATE.completedReminders||[]).filter(function(r){return r.id!==id;});STATE.completedReminders_work=(STATE.completedReminders_work||[]).filter(function(r){return r.id!==id;});save();renderReminders();}
 
