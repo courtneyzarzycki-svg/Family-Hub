@@ -1465,19 +1465,10 @@ function checkNotifications(){
       var key="n_"+item.id+"_"+mb+"_"+item.date;
       if(nowMs>=notifMs&&nowMs<notifMs+120000&&!sessionStorage.getItem(key)){
         var body=mb===0?"Now: "+item.title:mb<60?mb+" min: "+item.title:mb===60?"1 hour: "+item.title:"Tomorrow: "+item.title;
-        // Send via ntfy for locked screen notifications
-        try{
-          var nx=new XMLHttpRequest();
-          nx.open("POST","https://ntfy.sh/ZarzFamilyZone",true);
-          nx.setRequestHeader("Title","Family Hub");
-          nx.setRequestHeader("Priority","high");
-          nx.setRequestHeader("Tags","bell");
-          nx.send(body);
-        }catch(e){}
-        // Also try direct notification as fallback
+        // In-app notification only - Cloudflare Worker handles locked screen via FCM
         try{
           if(typeof Notification!=="undefined"&&Notification.permission==="granted"){
-            var n=new Notification("Family Hub",{body:body,tag:key});
+            new Notification("Family Hub",{body:body,tag:key});
           }
         }catch(e){}
         sessionStorage.setItem(key,"1");
