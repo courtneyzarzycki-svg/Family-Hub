@@ -295,6 +295,12 @@ function today(){var d=new Date();return d.getFullYear()+"-"+String(d.getMonth()
 function fmtDate(d){if(!d)return"";var p=d.split("-");return MONTHS[+p[1]-1]+" "+(+p[2])+", "+p[0];}
 function fmtTime(h,m,ap){return String(+h||0).padStart(2,"0")+":"+String(+m||0).padStart(2,"0")+" "+ap;}
 function getHolidays(d){return ALL_HOLIDAYS.filter(function(h){return h.date===d;});}
+function sortEventsByTime(evs){
+  return evs.slice().sort(function(a,b){
+    function eMins(e){var h=+(e.startH||0),m=+(e.startM||0),ap=e.startAP||"AM";if(ap==="PM"&&h!==12)h+=12;if(ap==="AM"&&h===12)h=0;return h*60+m;}
+    return eMins(a)-eMins(b);
+  });
+}
 function getMC(ev){if(!ev)return"#888";if(ev.jobColor)return ev.jobColor;if(ev.type==="birthday")return"#ec4899";if(ev.type==="vacation")return"#3b82f6";var m=ev.members||[];if(!m.length)return"#888";if(m.length>1)return"#1a1a1a";return(MEMBERS[m[0]]&&MEMBERS[m[0]].color)||"#888";}
 function getML(ev){if(!ev)return"#e5e7eb";if(ev.jobColor)return"white";if(ev.type==="birthday")return"#fce7f3";if(ev.type==="vacation")return"#dbeafe";var m=ev.members||[];if(!m.length)return"#e5e7eb";if(m.length>1)return"#f3f4f6";return(MEMBERS[m[0]]&&MEMBERS[m[0]].light)||"#e5e7eb";}
 function isVacDay(d){return STATE.events.some(function(e){return e.type==="vacation"&&e.date&&e.endDate&&d>=e.date&&d<=e.endDate;});}
@@ -617,7 +623,7 @@ function renderHome(){
   var notifGranted=typeof Notification!=="undefined"&&Notification.permission==="granted";
   if(notifGranted&&!STATE.notifEnabled){STATE.notifEnabled=true;}
   document.getElementById("home-notif-banner").innerHTML=notifGranted?"":"<div class='notif-banner'><div class='row-between'><div><div style='font-size:13px;font-weight:600;color:#1d4ed8'>Enable notifications</div></div><button class='btn btn-primary btn-sm' onclick='enableNotif()'>Enable</button></div></div>";
-  var evs=(workMode?STATE.events_work:STATE.events).filter(function(e){return true;}).filter(function(e){return eventOccursOn(e,t);});
+  var evs=(workMode?STATE.events_work:STATE.events).filter(function(e){return true;}).filter(function(e){return eventOccursOn(e,t);});evs=sortEventsByTime(evs);
   document.getElementById("home-events").innerHTML=evs.length?evs.map(eventCardHTML).join(""):"<div class='card' style='text-align:center;color:#9ca3af;font-size:13px;padding:16px'>No events today</div>";
   var t2=today();var rems=getVisibleReminders().filter(function(r){return !r.completed&&r.date<=t2;}),rh="";
   rems.forEach(function(r){rh+="<div class='card' style='display:flex;align-items:center;gap:10px;padding:10px 14px'><div class='checkbox' onclick=\"completeReminder('"+r.id+"')\"></div><div><div style='font-size:14px;font-weight:500'>"+r.title+"</div><div style='font-size:11px;color:#9ca3af'>"+fmtDate(r.date)+" - "+fmtTime(r.h,r.m,r.ampm)+"</div></div></div>";});
@@ -717,7 +723,7 @@ function renderCalDay(){
   hols.forEach(function(h){html+="<div class='event-card' style='background:#fef9c3;border-left-color:#ca8a04'><div style='font-weight:600;font-size:14px;color:#92400e'>"+h.name+"</div></div>";});
 
   if(workMode){
-    var workEvs=(STATE.events_work||[]).filter(function(e){return eventOccursOn(e,calSel);});
+    var workEvs=sortEventsByTime((STATE.events_work||[]).filter(function(e){return eventOccursOn(e,calSel);}));
     var allFamEvs=STATE.events.filter(function(e){return eventOccursOn(e,calSel);});
     var mikeFamEvs=allFamEvs.filter(function(e){return (e.members||[]).indexOf("mike")>=0||e.parent==="mike"||e.parent==="both";});
     // Mike's vacations (blue)
@@ -750,7 +756,7 @@ function renderCalDay(){
       html+="<div style='text-align:center;color:#9ca3af;font-size:13px;padding:16px 0'>No events - tap + to add</div>";
     }
   } else {
-    var famDevs=STATE.events.filter(function(e){return eventOccursOn(e,calSel);});
+    var famDevs=sortEventsByTime(STATE.events.filter(function(e){return eventOccursOn(e,calSel);}));
     famDevs.forEach(function(e){html+="<div id='evl-"+e.id+"' style='cursor:pointer'>"+eventCardHTML(e,false,false)+"</div>";});
     if(!famDevs.length&&!hols.length)html+="<div style='text-align:center;color:#9ca3af;font-size:13px;padding:16px 0'>No events - tap + to add</div>";
   }
@@ -930,7 +936,7 @@ function renderTaskContent(){
       if(isAdmin){
         var gBtn=document.createElement("button");gBtn.className="btn btn-secondary btn-sm";gBtn.textContent="+ Give Reward";(function(k){gBtn.onclick=function(){openGiveReward(k);};})(kid);hdr.appendChild(gBtn);
         var resetBtn=document.createElement("button");resetBtn.className="btn btn-danger btn-sm";resetBtn.style.marginLeft="4px";resetBtn.textContent="Reset";
-        (function(k){resetBtn.onclick=function(){confirmAction("Reset all rewards for "+MEMBERS[k].name+"?",function(){if(!STATE.rewards)STATE.rewards={};if(!STATE.rewardLog)STATE.rewardLog={};if(!STATE.manualRewards)STATE.manualRewards={};STATE.rewards[k]=0;STATE.rewardLog[k]=[];STATE.manualRewards[k]=[];save();renderTaskContent();});};})(kid);
+        (function(k){resetBtn.onclick=function(){confirmAction("Reset all rewards for "+MEMBERS[k].name+"?",function(){if(!STATE.rewards)STATE.rewards={};if(!STATE.rewardLog)STATE.rewardLog={};if(!STATE.manualRewards)STATE.manualRewards={};STATE.rewards[k]=0;STATE.rewardLog[k]=[];STATE.manualRewards[k]=[];STATE.lastModified=new Date().getTime();save();fbPush();renderTasks();});};})(kid);
         hdr.appendChild(resetBtn);
       }
       card.appendChild(hdr);
@@ -966,7 +972,8 @@ function renderTaskContent(){
             var chorePts=(STATE.rewardLog[kk]||[]).reduce(function(a,r){return a+(r.pts||0);},0);
             var bonusPts=(STATE.manualRewards[kk]||[]).reduce(function(a,r){return a+(r.pts||0);},0);
             STATE.rewards[kk]=chorePts+bonusPts;
-            save();renderTaskContent();
+            STATE.lastModified=new Date().getTime();
+            save();fbPush();renderTaskContent();
           };})(r,kid);
           row.appendChild(delR);
         }
@@ -1147,7 +1154,27 @@ var currentMealSub="plan";
 function renderMeals(){mealTab(currentMealSub,null);}
 function mealTab(t,el){currentMealSub=t;if(el){var tabs=document.querySelectorAll("#page-meals .sub-tab");for(var i=0;i<tabs.length;i++)tabs[i].classList.remove("active");el.classList.add("active");}var c=document.getElementById("meals-content");
   if(t==="plan"){var h="";MEAL_DAYS.forEach(function(d){h+="<div class='card' style='padding:10px 14px;margin-bottom:8px'><div class='row-between'><div><div style='font-size:11px;font-weight:600;color:#9ca3af'>"+d+"</div><div style='font-size:14px;font-weight:500;margin-top:2px'>"+(STATE.meals[d]||"<span style='color:#d1d5db'>Not planned</span>")+"</div></div><button class='btn btn-secondary btn-sm' onclick=\"openEditMeal('"+d+"')\">Edit</button></div></div>";});c.innerHTML=h;}
-  else if(t==="favs"){var h=(STATE.favMeals||[]).map(function(m){return "<div class='card' style='margin-bottom:8px'><div style='font-weight:600;font-size:14px;margin-bottom:4px'>"+m.name+"</div>"+(m.ingredients||[]).map(function(i){return "<div style='font-size:13px;color:#6b7280'>- "+i+"</div>";}).join("")+"</div>";}).join("");h+="<button class='btn btn-secondary' style='width:100%;margin-top:4px' onclick='openAddFavMeal()'>+ Add Favourite Meal</button>";if((STATE.mealShopping||[]).length)h+="<div style='margin-top:16px'><div class='section-title'>Shopping from meals</div>"+(STATE.mealShopping||[]).map(function(i){return "<div class='check-item'><div class='checkbox"+(i.completed?" checked":"")+"' onclick=\"toggleMealShop('"+i.id+"')\">"+(i.completed?"&#10003;":"")+"</div><div style='flex:1;font-size:14px;text-decoration:"+(i.completed?"line-through":"none")+"'>"+i.text+"</div></div>";}).join("")+"</div>";c.innerHTML=h;}
+  else if(t==="favs"){
+    c.innerHTML="";
+    var favMeals=STATE.favMeals||[];
+    if(!favMeals.length){
+      var none=document.createElement("div");none.style.cssText="text-align:center;color:#9ca3af;font-size:13px;padding:20px 0";none.textContent="No favourite meals yet";c.appendChild(none);
+    }
+    favMeals.forEach(function(m){
+      var card=document.createElement("div");card.className="card";card.style.marginBottom="8px";
+      var hdr=document.createElement("div");hdr.style.cssText="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px";
+      var mname=document.createElement("div");mname.style.cssText="font-weight:600;font-size:14px";mname.textContent=m.name;
+      var mbtns=document.createElement("div");mbtns.style.cssText="display:flex;gap:6px";
+      var editBtn=document.createElement("button");editBtn.style.cssText="background:none;border:none;cursor:pointer;font-size:16px;padding:2px 4px";editBtn.innerHTML="&#9998;";
+      (function(mid){editBtn.onclick=function(){openEditFavMeal(mid);};})(m.id);
+      var delBtn=document.createElement("button");delBtn.style.cssText="background:none;border:none;cursor:pointer;font-size:18px;color:#ef4444;padding:2px 4px";delBtn.innerHTML="&#215;";
+      (function(mid,mn){delBtn.onclick=function(){confirmAction("Delete "+mn+"?",function(){STATE.favMeals=(STATE.favMeals||[]).filter(function(x){return x.id!==mid;});save();mealTab("favs",null);});};})(m.id,m.name);
+      mbtns.appendChild(editBtn);mbtns.appendChild(delBtn);hdr.appendChild(mname);hdr.appendChild(mbtns);card.appendChild(hdr);
+      (m.ingredients||[]).forEach(function(ing){var d=document.createElement("div");d.style.cssText="font-size:13px;color:#6b7280";d.textContent="- "+ing;card.appendChild(d);});
+      c.appendChild(card);
+    });
+    var addFavBtn=document.createElement("button");addFavBtn.className="btn btn-secondary";addFavBtn.style.cssText="width:100%;margin-top:8px";addFavBtn.textContent="+ Add Favourite Meal";addFavBtn.onclick=openAddFavMeal;c.appendChild(addFavBtn);
+  }
   else{c.innerHTML=(STATE.groceries||[]).map(function(g){return "<div class='check-item'><div class='checkbox"+(g.completed?" checked":"")+"' onclick=\"toggleGroc('"+g.id+"')\">"+(g.completed?"&#10003;":"")+"</div><div style='flex:1;font-size:14px;text-decoration:"+(g.completed?"line-through":"none")+"'>"+g.text+"</div><button onclick=\"deleteGroc('"+g.id+"')\" style='background:none;border:none;color:#ef4444;cursor:pointer;font-size:18px'>&#215;</button></div>";}).join("")+"<div style='display:flex;gap:8px;margin-top:12px'><input id='groc-input' placeholder='Add item...' style='flex:1' onkeydown=\"if(event.key==='Enter')addGroc()\"><button class='btn btn-primary' onclick='addGroc()'>Add</button></div>";}
 }
 function openEditMeal(d){var fo=(STATE.favMeals||[]).map(function(m){return "<div onclick=\"pickFav('"+d+"','"+m.id+"')\" style='padding:8px 10px;background:#f9fafb;border-radius:8px;margin-bottom:5px;cursor:pointer;display:flex;justify-content:space-between'><span style='font-size:13px'>"+m.name+"</span><span style='font-size:11px;color:#9ca3af'>"+(m.ingredients?m.ingredients.length:0)+" ingr.</span></div>";}).join("");openGeneric("<div style='font-weight:700;font-size:17px;margin-bottom:12px'>Meal for "+d+"</div><input id='meal-input' value='"+(STATE.meals[d]||"")+"' placeholder='What is for dinner?' style='margin-bottom:10px'>"+(fo?"<div style='font-size:12px;color:#6b7280;margin-bottom:6px'>Pick a favourite:</div>"+fo:"")+"<div style='display:flex;gap:8px;margin-top:10px'><button class='btn btn-primary' style='flex:1' onclick=\"saveMeal('"+d+"')\">Save</button><button class='btn btn-secondary' onclick=\"closeModal('generic-modal')\">Cancel</button></div>");}
@@ -1213,7 +1240,10 @@ function renderShopping(){
   var inputRow=document.createElement("div");inputRow.style.cssText="display:flex;gap:8px;margin-bottom:8px";
   var inp=document.createElement("input");inp.id="store-input";inp.placeholder="Add item...";inp.style.flex="1";
   inp.onkeydown=function(e){if(e.key==="Enter")addStoreItem();};
-  var addBtn=document.createElement("button");addBtn.className="btn btn-primary";addBtn.textContent="Add";addBtn.onclick=addStoreItem;
+  var addBtn=document.createElement("button");addBtn.className="btn btn-primary";addBtn.textContent="Add";
+  addBtn.type="button";
+  addBtn.addEventListener("touchend",function(e){e.preventDefault();addStoreItem();},{passive:false});
+  addBtn.onclick=function(e){e.preventDefault();addStoreItem();};
   inputRow.appendChild(inp);inputRow.appendChild(addBtn);
   // Auto-restock toggle
   var arRow=document.createElement("div");arRow.style.cssText="display:flex;align-items:center;gap:10px";
@@ -1244,7 +1274,24 @@ function deleteStoreItem(id){
   }
   save();renderShopping();
 }
-function addStoreItem(){var v=document.getElementById("store-input").value.trim();if(!v)return;if(!STATE.stores[currentActiveStore])STATE.stores[currentActiveStore]=[];STATE.stores[currentActiveStore].push({id:uid(),text:v,completed:false,autoRestock:false});save();renderShopping();}
+function addStoreItem(){
+  var inp=document.getElementById("store-input");
+  if(!inp)return;
+  var v=inp.value.trim();
+  if(!v)return;
+  // Save auto-restock state before re-render clears it
+  var ar=document.getElementById("store-auto-restock");
+  var autoRestock=ar?ar.checked:false;
+  if(!STATE.stores[currentActiveStore])STATE.stores[currentActiveStore]=[];
+  STATE.stores[currentActiveStore].push({id:uid(),text:v,completed:false,autoRestock:autoRestock});
+  save();
+  renderShopping();
+  // Restore auto-restock state and focus input after render
+  var newAr=document.getElementById("store-auto-restock");
+  if(newAr)newAr.checked=autoRestock;
+  var newInp=document.getElementById("store-input");
+  if(newInp){newInp.value="";newInp.focus();}
+}
 function addStorePrompt(){var name=prompt("Store name:");if(!name||!name.trim())return;STATE.storeList.push(name.trim());STATE.stores[name.trim()]=[];currentActiveStore=name.trim();save();renderShopping();}
 
 // ── REMINDERS ────────────────────────────────────────────────────────────
@@ -1320,12 +1367,15 @@ function openReminderModal(id){
   var html="<div><div style='font-size:12px;font-weight:500;color:#6b7280;margin-bottom:4px'>Title</div><input id='rem-title' value='"+(r?r.title.replace(/'/g,"&#39;"):"")+"\' placeholder='Reminder'></div>"
     +"<div><div style='font-size:12px;font-weight:500;color:#6b7280;margin-bottom:4px'>Date</div><input type='date' id='rem-date' value='"+(r?r.date:today())+"'></div>"
     +"<div><div style='font-size:12px;font-weight:500;color:#6b7280;margin-bottom:6px'>Time <span style='font-size:11px;color:#9ca3af'>(tap to set)</span></div>"+makeTimeField("rem",defH,defM,defAP)+"</div>"
-    +"<div><div style='font-size:12px;font-weight:500;color:#6b7280;margin-bottom:4px'>Repeat</div><select id='rem-repeat' style='width:100%'>"+repOpts+"</select></div>"
+    +"<div><div style='font-size:12px;font-weight:500;color:#6b7280;margin-bottom:4px'>Repeat</div><select id='rem-repeat' style='width:100%'>"+repOpts+repOpts+"</select></div>"
     +custHtml
     +"<div><div style='font-size:12px;font-weight:500;color:#6b7280;margin-bottom:6px'>Notifications</div><div id='rem-notif-rows'></div></div>"
     +(isPartner?"<div style='display:flex;align-items:center;gap:10px'><label class='toggle-wrap'><input type='checkbox' id='rem-share' "+(r&&r.sharedWithPartner?"checked":"")+" ><span class='toggle-slider'></span></label><span style='font-size:13px'>Share with "+partnerName+"</span></div>":"")
     +"<div style='display:flex;gap:8px;margin-top:4px'><button class='btn btn-primary' style='flex:1' onclick='saveReminder()'>Save</button>"+(r?"<button class='btn btn-danger' onclick=\"deleteReminder('"+r.id+"')\">Delete</button>":"")+"<button class='btn btn-secondary' onclick=\"closeModal('reminder-modal')\">Cancel</button></div>";
   document.getElementById("reminder-form").innerHTML=html;
+  // Wire up custom repeat toggle
+  var remRepSel=document.getElementById("rem-repeat");
+  if(remRepSel)remRepSel.onchange=function(){toggleRemCustomRepeat();};
   renderNotifRows("rem-notif-rows",remNotifList,"rem");
   document.getElementById("reminder-modal").classList.add("open");
 }
