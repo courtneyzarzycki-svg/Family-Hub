@@ -917,6 +917,7 @@ function renderTaskContent(){
     var cc=STATE.completedChores||[],html="<div style='font-size:13px;color:#6b7280;margin-bottom:12px'>Completed chores history</div>";
     if(!cc.length)html+="<div style='font-size:13px;color:#9ca3af'>No completed chores yet</div>";
     cc.slice().reverse().forEach(function(c2){html+="<div class='card' style='padding:10px 14px;opacity:0.85'><div style='font-weight:500;font-size:14px'>"+c2.text+"</div><div style='font-size:11px;color:#9ca3af;margin-top:2px'>"+(MEMBERS[c2.member]?MEMBERS[c2.member].name:c2.member)+" - "+fmtDate(c2.date)+(c2.rewardPts?" - +"+c2.rewardPts+" pts":"")+"</div></div>";});
+    if(isAdmin&&cc.length){html+="<button class='btn btn-danger' style='width:100%;margin-top:12px' onclick='clearCompletedChores()'>Clear All Completed Chores</button>";}
     c.innerHTML=html;
   } else if(currentTaskSub==="todos"){
     var todos=workMode?STATE.todos_work:STATE.todos,vis=todos.filter(function(t){return (t.assigned||[]).indexOf(currentUser)>=0;}),html="";
@@ -1048,6 +1049,12 @@ function renderTaskContent(){
     c4.appendChild(addBtn);
     return;
   }
+}
+function clearCompletedChores(){
+  confirmAction("Clear all completed chores history?",function(){
+    STATE.completedChores=[];
+    save();renderTaskContent();
+  });
 }
 function deleteChore(id,mk){
   confirmAction("Delete this chore?",function(){
@@ -1310,8 +1317,12 @@ function renderReminders(){
   document.getElementById("reminders-title").textContent=workMode?"Work Reminders":"Reminders";
   document.getElementById("rem-notif-banner").innerHTML=!STATE.notifEnabled?"<div class='notif-banner' style='margin-bottom:12px'><div class='row-between'><div><div style='font-size:12px;font-weight:600;color:#1d4ed8'>Enable notifications</div><div style='font-size:11px;color:#3b82f6;margin-top:1px'>Pop-up alerts on your device</div></div><button class='btn btn-primary btn-sm' onclick='enableNotif()'>Enable</button></div></div>":"";
   var rems=workMode?(STATE.reminders_work||[]):getVisibleReminders();
-  var completedList=workMode?(STATE.completedReminders_work||[]):(STATE.completedReminders||[]);
-  var pending=rems.filter(function(r){return !r.completed;});
+  var completedList=(workMode?(STATE.completedReminders_work||[]):(STATE.completedReminders||[])).filter(function(r){return r.owner===currentUser;});
+  var pending=rems.filter(function(r){return !r.completed;}).sort(function(a,b){
+    function rMins(r){var h=+(r.h||0),m=+(r.m||0),ap=r.ampm||"AM";if(ap==="PM"&&h!==12)h+=12;if(ap==="AM"&&h===12)h=0;return h*60+m;}
+    if(a.date!==b.date)return a.date>b.date?1:-1;
+    return rMins(a)-rMins(b);
+  });
   var shareHtml="";
   if(currentUser==="mike")shareHtml="<div class='card' style='margin-bottom:10px;padding:10px 14px'><div class='row-between'><div style='font-size:13px;font-weight:500'>Share my reminders with Courtney</div><label class='toggle-wrap'><input type='checkbox' "+(STATE.mikeShareReminders?"checked":"")+" onchange='STATE.mikeShareReminders=this.checked;save();renderReminders()'><span class='toggle-slider'></span></label></div></div>";
   if(currentUser==="courtney")shareHtml="<div class='card' style='margin-bottom:10px;padding:10px 14px'><div class='row-between'><div style='font-size:13px;font-weight:500'>Share my reminders with Mike</div><label class='toggle-wrap'><input type='checkbox' "+(STATE.courtneyShareReminders?"checked":"")+" onchange='STATE.courtneyShareReminders=this.checked;save();renderReminders()'><span class='toggle-slider'></span></label></div></div>";
@@ -1365,6 +1376,21 @@ function processMidnightReminders(){
           else if(r.repeat==="weekly")d.setDate(d.getDate()+7);
           else if(r.repeat==="monthly")d.setMonth(d.getMonth()+1);
           else if(r.repeat==="yearly")d.setFullYear(d.getFullYear()+1);
+          else if(r.repeat==="custom"){
+            if(r.customType==="every"&&r.repeatEvery){
+              d.setDate(d.getDate()+(+r.repeatEvery));
+            } else if(r.customType==="days"&&r.repeatDays&&r.repeatDays.length){
+              // Find next day of week
+              var currentDay=d.getDay();
+              var sortedDays=r.repeatDays.slice().sort(function(a,b){return a-b;});
+              var nextDay=sortedDays.find(function(day){return day>currentDay;});
+              if(nextDay===undefined)nextDay=sortedDays[0];
+              var daysAhead=nextDay>currentDay?nextDay-currentDay:7-(currentDay-nextDay);
+              d.setDate(d.getDate()+daysAhead);
+            } else {
+              d.setDate(d.getDate()+7); // fallback
+            }
+          }
           next.date=d.toISOString().split("T")[0];
           keep.push(next);
         }
